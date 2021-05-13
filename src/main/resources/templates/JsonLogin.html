@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Json登录</title>
+
+    <style type="text/css">
+        img {
+            width: 100px;
+            height: 30px;
+        }
+
+        tr {
+            height: 30px;
+        }
+
+        #loginForm {
+            /*background-color: pink;*/
+            width: 350px;
+            margin: 200px auto;
+        }
+
+        .submit, h4 {
+            text-align: center;
+        }
+    </style>
+
+</head>
+<body>
+<div id="app">
+    <div id="loginForm">
+
+        <a href="#" @click.prevent="switchLoginType()">切换</a>
+
+        <h4>Login Demo</h4>
+
+        <!-- 1: username 登录 -->
+        <div id="usernameLogin" v-if="!isMobileLogin">
+            <table>
+                <tr>
+                    <td>用户名:</td>
+                    <td><input type="text" v-model="username"/></td>
+                </tr>
+                <tr>
+                    <td>密码:</td>
+                    <td><input type="password" v-model="password"/></td>
+                </tr>
+                <tr>
+                    <td>验证码:</td>
+                    <td><input type="text" v-model="imageCode"/></td>
+                    <td>
+                        <img :src="imgSrc" @click="refreshImageCode()"/>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="submit">
+                        <button @click="submitBtnClick()">登录</button>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- 2: mobile 登录-->
+        <div id="mobileLogin" v-else>
+            <table>
+                <tr>
+                    <td>手机号:</td>
+                    <td><input type="text" v-model="mobile"/></td>
+                </tr>
+                <tr>
+                    <td>验证码:</td>
+                    <td><input type="text" v-model="smsCode"/></td>
+                    <td>
+                        <button @click="sendBtnClick()" :disabled="clickSendDisabled">
+                            {{text}}
+                        </button>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="submit" colspan="2">
+                        <button @click="mobileSubmitBtnClick()">登录</button>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
+
+</body>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script src="/webjars/vue/vue.min.js"></script>
+<script type="text/javascript">
+    function postRequest(url, data) {
+        return axios({
+            method: 'post',
+            url,
+            data,
+        });
+    }
+
+    function getRequest(url, params) {
+        return axios({
+            method: 'get',
+            url,
+            params
+        });
+    }
+
+    const app = new Vue({
+        el: '#app',
+        data: {
+            // ~ username 登录
+            username: '',
+            password: '',
+            imageCode: '',
+            id: '',                     // 本次获取验证码的唯一标识
+            isMobileLogin: true,
+            imgSrc: '',
+            imageCodeApi: 'http://localhost:8081/imageCode?id=',
+
+            // ~ mobile 登录
+            mobile: '',                 // 手机号
+            smsCode: '',                // 短信验证码
+            text: '点击发送',            // 发送手机验证码显示的文本
+            seconds: 60,                // "点击发送" 按钮点击后, 60s 后才可以发送短信验证码
+            clickSendDisabled: false,   // "点击发送" 按钮是否禁用
+            interval: null,             // 定时器
+            reg_mobile: /^(13[0-9]|14[01456879]|15[0-35-9]|16[2567]|17[0-8]|18[0-9]|19[0-35-9])\d{8}$/
+        },
+        methods: {
+            // ~ username 登录
+            // 监听"切换"按钮的点击
+            switchLoginType() {
+                this.isMobileLogin = !this.isMobileLogin;
+            },
+
+            // 监听 "登录" 按钮的点击
+            submitBtnClick() {
+                this.username = this.username.trim();
+                this.password = this.password.trim();
+                this.imageCode = this.imageCode.trim();
+                console.log(this.username, this.password, this.imageCode);
+                postRequest("http://localhost:8081/doLogin", {
+                    'username': this.username,
+                    'password': this.password,
+                    'id': this.id,
+                    'imageCode': this.imageCode
+                }).then(res => {
+                    console.log(res);
+                    alert(res.data.message);
+                })
+            },
+
+            // 刷新图片验证码
+            refreshImageCode() {
+                this.id = this.genID(12);
+                this.imgSrc = this.imageCodeApi + this.id;
+            },
+
+            // 生成唯一Id
+            genID(length) {
+                return Number(Math.random().toString().substr(3, length) + Date.now()).toString(36);
+            },
+
+            // ~ mobile 登录
+            // =======================================================================================
+
+            // 监听 "点击发送" 按钮
+            sendBtnClick() {
+                this.mobile = this.mobile.trim();
+                if (this.mobile == '') {
+                    alert('手机号不能为空！');
+                    return;
+                }
+
+                if (!this.reg_mobile.test(this.mobile)) {
+                    alert('请填写正确的手机号');
+                    return;
+                }
+
+                getRequest('http://localhost:8081/smsCode', {'mobile': this.mobile}).then(res => {
+                    alert(res.data.message);
+                    if (res.data.statusCode == 200) {
+                        this.interval = setInterval(() => {
+                            this.clickSendDisabled = true;
+                            this.text = this.seconds + "s后可重新发送";
+                            --this.seconds;
+                        }, 1000);
+                    }
+                });
+            },
+
+            // 监听 "手机号登录" 按钮
+            mobileSubmitBtnClick() {
+                this.mobile = this.mobile.trim();
+                this.smsCode = this.smsCode.trim();
+
+                if (!this.reg_mobile.test(this.mobile)) {
+                    alert('请填写正确的手机号');
+                    return;
+                }
+
+                if(this.smsCode == '') {
+                    alert('请填写验证码！');
+                    return;
+                }
+
+                postRequest('http://localhost:8081/login/mobile', {
+                    'mobile': this.mobile,
+                    'smsCode': this.smsCode,
+                }).then(res => {
+                    alert(res.data.message);
+                })
+            }
+
+        },
+        watch: {
+            seconds(oldVal, newVal) {
+                if (newVal == 0) {
+                    window.clearInterval(this.interval);
+                    this.text = "点击发送";
+                    this.seconds = 60;
+                    this.clickSendDisabled = false;
+                }
+            }
+        },
+
+        // ~ 生命周期函数
+        // ===================================================================================
+        created() {
+            this.id = this.genID(12);
+            this.imgSrc = this.imageCodeApi + this.id;
+        }
+    });
+</script>
+</html>
