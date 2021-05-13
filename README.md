@@ -86,6 +86,10 @@ validate.code.image.enabled=true
 
 
 
+[百度网盘项目下载地址](https://pan.baidu.com/s/1C_Sh9gF1phzp52a76ofknQ)
+提取码：gjva 
+
+
 ## 3.2. 接口描述
 
 **接口地址**:
