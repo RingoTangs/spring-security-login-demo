@@ -1,22 +1,26 @@
 package com.ymy.boot.service;
 
+import cn.hutool.core.util.ReUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.ymy.boot.auth.sms.SmsAuthenticationProvider;
 import com.ymy.boot.entity.User;
 import com.ymy.boot.mapper.UserMapper;
-import org.springframework.security.core.Authentication;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-import com.ymy.boot.auth.sms.SmsAuthenticationProvider;
-
 import javax.annotation.Resource;
+
+import static com.ymy.boot.constant.AuthConstant.MOBILE_REGEX;
 
 /**
  * @author Ringo
  * @date 2021/5/10 10:42
  */
+@Slf4j
 @Service
 public class UserService implements UserDetailsService {
 
@@ -24,17 +28,28 @@ public class UserService implements UserDetailsService {
     private UserMapper userMapper;
 
     /**
-     * 该方法在 {@link SmsAuthenticationProvider} 中被调用。
+     * 该方法在 {@link SmsAuthenticationProvider} {@link DaoAuthenticationProvider}中被调用。
+     * 作用：查询用户是否存在, 无论是username还是mobile都是用户的唯一标识。
      */
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
 
-        // 1: 先按照 username 查询, 用户名查不到再按照 mobile(手机号) 查
         QueryWrapper<User> wrapper = new QueryWrapper<>();
-        wrapper.eq("mobile", username).or().eq("username", username);
+
+        // 1: 区分username是用户名还是手机号
+        if (ReUtil.isMatch(MOBILE_REGEX, username)) {
+            // 手机号登录
+            log.info("mobile login...");
+            wrapper.eq("mobile", username);
+        } else {
+            // 用户名登录
+            log.info("username login..");
+            wrapper.eq("username", username);
+        }
+
         User user = userMapper.selectOne(wrapper);
 
-        // 2: username和mobile都查不到直接抛出异常
+        // 2: 用户不存在直接抛出异常
         if (user == null) {
             throw new UsernameNotFoundException("用户不存在, 请先注册~");
         }
