@@ -3,9 +3,11 @@
 **参考文章**:
 
 - [添加图片验证码](https://www.cnblogs.com/zyly/p/12287310.html)
-
 - [短信验证码校验逻辑](https://www.cnblogs.com/zyly/p/12287813.html)
 - [Spring Security中UsernameNotFoundException的解决方案](https://www.it610.com/article/1280916147809566720.htm)
+- [Spring Security 过滤器链](https://blog.csdn.net/zhong_csdn/article/details/79447185)
+- [理解AuthenticationManager](https://www.cnblogs.com/felordcn/p/13370489.html)
+- [分析AuthenticationManagerBuilder](http://www.javashuo.com/article/p-ymhhwipy-dn.html)
 
 # 1.  实现原理
 
@@ -60,6 +62,7 @@ public static String keyGenerator(String id, ValidateCodeType type) {
 
 ## 3.1. 开发环境
 
+- *JDK 1.8*
 - *MySQL 5.7*。
 - *Redis 6.0.4*。
 - *Idea 2019.3.3 必须安装 lombok*。
@@ -86,8 +89,23 @@ validate.code.image.enabled=true
 
 
 
-[百度网盘项目下载地址](https://pan.baidu.com/s/1C_Sh9gF1phzp52a76ofknQ)
-提取码：gjva 
+> 注意：
+>
+> - 存储在数据库中的密码需要是密文，项目中使用的是 `BCryptPasswordEncoder`。
+> - 准备数据库测试数据之前需要先将明文编码。
+
+```java
+// 本项目 SecurityConfig 中注入了该组件
+@Bean
+public PasswordEncoder passwordEncoder() {
+    return new BCryptPasswordEncoder();
+}
+
+// 在测试类中调用 passwordEncoder.encode("123") 方法就可以生成密文了。
+```
+
+
+
 
 
 ## 3.2. 接口描述
@@ -152,7 +170,194 @@ validate.code.image.enabled=true
 
 
 
-# 4. more ~
+# 4. 更新记录
+
+## 5月14日更新
+
+**5.14日更新：配置多个UserDetailsService**？
+
+先看原来的UserDetailsService实现类：
+
+```java
+@Service
+public class UserService implements UserDetailsService {
+
+    @Resource
+    private UserMapper userMapper;
+
+    /**
+     * 该方法在 {@link SmsAuthenticationProvider} 中被调用。
+     */
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+
+        // 1: 先按照 username 查询, 用户名查不到再按照 mobile(手机号) 查
+        QueryWrapper<User> wrapper = new QueryWrapper<>();
+        wrapper.eq("mobile", username).or().eq("username", username);
+        User user = userMapper.selectOne(wrapper);
+
+        // 2: username和mobile都查不到直接抛出异常
+        if (user == null) {
+            throw new UsernameNotFoundException("用户不存在, 请先注册~");
+        }
+
+        // 4: 查到用户信息
+        // 设置角色 user.setAuthorities(List<>) ....
+
+        return user;
+    }
+}
+```
+
+`UserDetailsService` 是在 `AuthenticationProvider` 中被调用的，目的就是去查看用户是否存在。显然我们这里发的SQL是 `select * from t_user where username = ? or mobile = ?`。众所周知，SQL中使用 OR 会影响MySQL的性能，所以第一个解决办法是再写一个UserDetailsService。
+
+> - `UserService` 只用于查询用户名。
+> - `UserMobileService` 只用户查询手机号。
+>
+> 以上两个 UserDetailsService 更改业务逻辑非常简单，这里就不再展示了~
+
+
+
+**第一步**：`DaoAuthenticationProvider` 调用 `UserService` 用于查询用户名是否存在。但是源码中并不知道我们定义了新的 UserDetailsService。
+
+```java
+// DaoAuthenticationProvider 源码
+public class DaoAuthenticationProvider extends AbstractUserDetailsAuthenticationProvider { 
+    // 这里定义的是接口
+    private UserDetailsService userDetailsService;
+    
+    // ....
+    // 以下方法中直接调用 userDetailsService.loadUserByUsername(String username)
+}
+```
+
+因此，需要重新设置 `DaoAuthenticaionProvider`。配置如下：
+
+```java
+// 项目中Spring Security的主配置类
+@Configuration
+public class SecurityConfig extends WebSecurityConfigurerAdapter { 
+    
+    /**
+     * 重新设置 DaoAuthenticationProvider
+     * 
+     * DaoAuthenticationProvider 配置 UsernameNotFoundException 向上抛出。
+     */
+    @Bean
+    public DaoAuthenticationProvider daoAuthenticationProvider() {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userService);
+        provider.setHideUserNotFoundExceptions(false);
+        provider.setPasswordEncoder(passwordEncoder());
+        return provider;
+    }
+
+    /**
+     * Spring Security 原生的 AuthenticationProvider 需要在这里配置才会生效！
+     */
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        // 添加自定义的 AuthenticationProvider
+        auth.authenticationProvider(daoAuthenticationProvider());
+    }
+}
+```
+
+
+
+**第二步**：我们自定义的 `SmsAuthenticationProvider` 也不知道 `UserMobileService` 的存在，也需要配置。
+
+```java
+// 项目中短信验证码的配置类
+@Configuration
+public class SmsAuthenticationConfig extends SecurityConfigurerAdapter<DefaultSecurityFilterChain, HttpSecurity> {
+
+    // 注入 UserMobileService
+    @Resource
+    private UserMobileService userMobileService;
+
+    // 配置 AuthenticationProvider 需要有 UserDetailsService。
+    @Bean
+    public SmsAuthenticationProvider smsAuthenticationProvider() {
+        SmsAuthenticationProvider provider = new SmsAuthenticationProvider();
+        
+        // 注意：这里添加的是 userMobileService
+        provider.setUserDetailsService(userMobileService);
+        return provider;
+    }
+    
+    // 其他代码可以在项目中看到
+    // 将 SmsAuthenticationProvider 加入到 Spring Security 中 省略
+    // .....
+}
+```
+
+OK大功告成，定义多个 UserDeatilsService 搞定 ~
+
+
+
+> 但是，能不能就定义一个 UserDetailsService 就解决问题呢？
+>
+> 答案是肯定的，那就在 UserSevice 这个实现类中**使用正则表达式**即可~ 
+>
+> 项目本次更新用的也是该方法！
+
+```java
+@Slf4j
+@Service
+public class UserService implements UserDetailsService {
+
+    @Resource
+    private UserMapper userMapper;
+
+    /**
+     * 该方法在 {@link SmsAuthenticationProvider} 中被调用。
+     */
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+
+        QueryWrapper<User> wrapper = new QueryWrapper<>();
+
+        if (ReUtil.isMatch(MOBILE_REGEX, username)) {
+            // 参数 username 是手机号
+            log.info("手机号登录...UserService");
+            wrapper.eq("mobile", username);
+        } else {
+            // 参数 username 是用户账号
+            log.info("用户名登录...UserService");
+            wrapper.eq("username", username);
+        }
+
+        // 1: 手机号登录就去查手机号，用户名登录就去查用户名~ 只要能确定用户是否存在即可
+        
+        // 用户名 + 密码 登录模式 <==> username/mobile + password 模式
+        // 即: 前端用户名的输出框, 既可以填 username 也可以填 mobile
+        User user = userMapper.selectOne(wrapper);
+
+        // 2: username和mobile都查不到直接抛出异常
+        if (user == null) {
+            throw new UsernameNotFoundException("用户不存在, 请先注册~");
+        }
+
+        // 4: 查到用户信息
+        // 设置角色 user.setAuthorities(List<>) ....
+
+        return user;
+    }
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+# 5. more ~
 
 欢迎您对本项目提出宝贵的意见。如果本项目对您的学习有帮助，请收藏 ~
 
