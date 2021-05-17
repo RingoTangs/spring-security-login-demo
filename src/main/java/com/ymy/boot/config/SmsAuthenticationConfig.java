@@ -14,6 +14,7 @@ import org.springframework.security.config.annotation.authentication.builders.Au
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.DefaultSecurityFilterChain;
+import org.springframework.security.web.authentication.RememberMeServices;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import javax.annotation.Resource;
@@ -48,6 +49,9 @@ public class SmsAuthenticationConfig extends SecurityConfigurerAdapter<DefaultSe
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
+    @Resource
+    private RememberMeServices rememberMeServices;
+
     // 配置 AuthenticationProvider 需要有 UserDetailsService。
     @Bean
     public SmsAuthenticationProvider smsAuthenticationProvider() {
@@ -65,6 +69,7 @@ public class SmsAuthenticationConfig extends SecurityConfigurerAdapter<DefaultSe
                 .authenticationSuccessHandler(loginSuccessHandler)
                 .authenticationFailureHandler(loginFailureHandler)
                 .redisTemplate(stringRedisTemplate)
+                .rememberMeServices(rememberMeServices)
                 .build();
 
         /**

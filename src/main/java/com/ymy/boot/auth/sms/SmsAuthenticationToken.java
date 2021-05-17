@@ -23,11 +23,6 @@ public class SmsAuthenticationToken extends AbstractAuthenticationToken {
      */
     private final Object principal;
 
-    /**
-     * 请求中的验证码
-     */
-//    @Getter
-//    private String code;
 
     /**
      * 校验之前: 构造一个 <code>SmsAuthenticationToken</code> 就用这个构造方法

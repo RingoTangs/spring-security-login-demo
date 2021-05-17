@@ -67,8 +67,33 @@ public interface AuthConstant {
     String IMAGE_CODE_REQUEST_PARAM = "imageCode";
 
 
+    // ~ 注销登录
+    // ==================================================================================
+
     /**
      * 注销登录
      */
     String LOGOUT_URL = "/logout";
+
+    // ~ remember-me 相关
+
+    /**
+     * 请求参数名称
+     */
+    String PARAMETER = "spring-security-remember-me";
+
+    /**
+     * Cookie名称
+     */
+    String COOKIE_NAME = "spring-security-remember-me";
+
+    /**
+     * 用于生成存在cookie中的remember-me
+     */
+    String KEY = "RingoTangs";
+
+    /**
+     * cookie的过期时间, 默认一周
+     */
+    int COOKIE_EXPIRE_IN = 604800;
 }

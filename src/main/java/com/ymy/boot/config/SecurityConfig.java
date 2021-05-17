@@ -12,6 +12,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.authentication.RememberMeServices;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 
 import javax.annotation.Resource;
@@ -57,6 +58,13 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
      */
     @Resource
     private ImageAuthenticationConfig imageAuthenticationConfig;
+
+
+    /**
+     * remember-me 服务
+     */
+    @Resource
+    private RememberMeServices rememberMeServices;
 
 
     /**
@@ -107,6 +115,11 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
                 .and()
                 .formLogin()
+
+                // 开启 remember-me 功能
+                .and()
+                .rememberMe()
+                .rememberMeServices(rememberMeServices)       // 在RememberMeAuthenticationFilter中加入rememberMeServices
 
                 .and()
                 .logout()

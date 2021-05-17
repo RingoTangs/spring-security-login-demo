@@ -11,6 +11,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.RememberMeServices;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import javax.annotation.Resource;
@@ -36,6 +37,9 @@ public class ImageAuthenticationConfig extends SecurityConfigurerAdapter<Default
     @Autowired
     private ImageCodeProperties imageCodeProperties;
 
+    @Resource
+    private RememberMeServices rememberMeServices;
+
     @Override
     public void configure(HttpSecurity http) throws Exception {
         ImageAuthenticationFilter filter = ImageAuthenticationFilter.builder()
@@ -44,6 +48,7 @@ public class ImageAuthenticationConfig extends SecurityConfigurerAdapter<Default
                 .authenticationFailureHandler(loginFailureHandler)
                 .redisTemplate(stringRedisTemplate)
                 .imageCodeProperties(imageCodeProperties)
+                .rememberMeServices(rememberMeServices)
                 .build();
         http.addFilterAfter(filter, UsernamePasswordAuthenticationFilter.class);
     }

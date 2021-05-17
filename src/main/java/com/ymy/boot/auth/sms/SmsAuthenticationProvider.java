@@ -5,6 +5,7 @@ import com.ymy.boot.entity.User;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.ProviderNotFoundException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -24,6 +25,11 @@ public class SmsAuthenticationProvider implements AuthenticationProvider {
     // 校验 AuthenticationToken 的方法
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
+
+        if (!supports(authentication.getClass())) {
+            return null;
+        }
+
         SmsAuthenticationToken authenticationToken = (SmsAuthenticationToken) authentication;
 
         // 1: 通过手机号去查询用户

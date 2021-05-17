@@ -8,15 +8,11 @@ import com.ymy.boot.utils.AppUtil;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
-import org.springframework.security.web.authentication.AuthenticationFailureHandler;
-import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.*;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.util.Assert;
 
@@ -138,6 +134,8 @@ public class SmsAuthenticationFilter extends AbstractAuthenticationProcessingFil
 
         private StringRedisTemplate redisTemplate;
 
+        private RememberMeServices rememberMeServices;
+
         private Builder() {
         }
 
@@ -161,12 +159,22 @@ public class SmsAuthenticationFilter extends AbstractAuthenticationProcessingFil
             return this;
         }
 
+        public Builder rememberMeServices(RememberMeServices rememberMeServices) {
+            this.rememberMeServices = rememberMeServices;
+            return this;
+        }
+
         public SmsAuthenticationFilter build() {
             SmsAuthenticationFilter filter = new SmsAuthenticationFilter();
             filter.setAuthenticationManager(authenticationManager);
             filter.setAuthenticationSuccessHandler(authenticationSuccessHandler);
             filter.setAuthenticationFailureHandler(authenticationFailureHandler);
             filter.setRedisTemplate(redisTemplate);
+
+            // 配置记住我功能
+            if (rememberMeServices != null) {
+                filter.setRememberMeServices(rememberMeServices);
+            }
             return filter;
         }
     }

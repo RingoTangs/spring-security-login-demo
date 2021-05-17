@@ -17,6 +17,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.RememberMeServices;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.util.Assert;
 
@@ -176,6 +177,8 @@ public class ImageAuthenticationFilter extends AbstractAuthenticationProcessingF
 
         private ImageCodeProperties imageCodeProperties;
 
+        private RememberMeServices rememberMeServices;
+
         private Builder() {
         }
 
@@ -204,6 +207,11 @@ public class ImageAuthenticationFilter extends AbstractAuthenticationProcessingF
             return this;
         }
 
+        public Builder rememberMeServices(RememberMeServices rememberMeServices) {
+            this.rememberMeServices = rememberMeServices;
+            return this;
+        }
+
         public ImageAuthenticationFilter build() {
             ImageAuthenticationFilter filter = new ImageAuthenticationFilter();
             filter.setAuthenticationManager(authenticationManager);
@@ -211,6 +219,11 @@ public class ImageAuthenticationFilter extends AbstractAuthenticationProcessingF
             filter.setAuthenticationFailureHandler(authenticationFailureHandler);
             filter.setRedisTemplate(redisTemplate);
             filter.setImageCodeProperties(imageCodeProperties);
+
+            // 配置记住我功能
+            if (rememberMeServices != null) {
+                filter.setRememberMeServices(rememberMeServices);
+            }
             return filter;
         }
     }
