@@ -5,9 +5,8 @@
 - [添加图片验证码](https://www.cnblogs.com/zyly/p/12287310.html)
 - [短信验证码校验逻辑](https://www.cnblogs.com/zyly/p/12287813.html)
 - [Spring Security中UsernameNotFoundException的解决方案](https://www.it610.com/article/1280916147809566720.htm)
+- [Spring Security实现自动登录](http://www.javaboy.org/2020/0429/rememberme-advance.html)
 - [Spring Security 过滤器链](https://blog.csdn.net/zhong_csdn/article/details/79447185)
-- [理解AuthenticationManager](https://www.cnblogs.com/felordcn/p/13370489.html)
-- [分析AuthenticationManagerBuilder](http://www.javashuo.com/article/p-ymhhwipy-dn.html)
 
 # 1.  实现原理
 
@@ -349,11 +348,124 @@ public class UserService implements UserDetailsService {
 
 
 
+## 5月16日更新
+
+**5月16日更新：remember-me功能**。
+
+Spring Security的记住我功能包含两方面：
+
+1. 登录校验成功后，token分别存储到数据库和浏览器的cookie中（RememberMeServices）。
+2. 再次登录，不用输入密码，需要进行校验（RememberMeAuthenticationFilter）。
+
+
+
+**第一步**：如何登录？
+
+```java
+// AbstractAuthenticationProcessingFilter 源码 
+public abstract class AbstractAuthenticationProcessingFilter { 
+
+    // 默认的RememberMeServices
+    // 需要我们重新配置
+    private RememberMeServices rememberMeServices = new NullRememberMeServices();
+
+
+    // 用户名密码校验成功之后会调用这个方法
+    protected void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain,
+                                            Authentication authResult) throws IOException, ServletException {
+        SecurityContextHolder.getContext().setAuthentication(authResult);
+        if (this.logger.isDebugEnabled()) {
+            this.logger.debug(LogMessage.format("Set SecurityContextHolder to %s", authResult));
+        }
+        
+        // 登录时 remrember-me 的逻辑
+        this.rememberMeServices.loginSuccess(request, response, authResult);
+        
+        if (this.eventPublisher != null) {
+            this.eventPublisher.publishEvent(new InteractiveAuthenticationSuccessEvent(authResult, this.getClass()));
+        }
+        this.successHandler.onAuthenticationSuccess(request, response, authResult);
+    }
+}
+```
+
+由此可见，`SmsAuthenticationFilter、ImageAuthenticationFilter` 都需要设置 RememberMeServices。
+
+详细配置请看 `RememberMeConfig`。
+
+数据库表请看 `persistent_logins.sql`。
+
+
+
+> **注意**：
+>
+> - 使用记住我登录功能，前端必须传remember-me参数。
+> - 由于remember-me参数的获取是直接从 request 中获取，所以post请求中的JSON要转换成表单登录的形式。
+
+```java
+// AbstractRememberMeServices#rememberMeRequested(HttpServletRequest, String) 源码
+String paramValue = request.getParameter(parameter);
+if (paramValue != null) {
+    if (paramValue.equalsIgnoreCase("true") || paramValue.equalsIgnoreCase("on")
+        || paramValue.equalsIgnoreCase("yes") || paramValue.equals("1")) {
+        return true;
+    }
+}
+```
+
+
+
+```javascript
+// 前端可以这样传数据。
+postRequest('http://localhost:8081/login/mobile?' +
+            'spring-security-remember-me=' + this.isRemember2, {
+    'mobile': this.mobile,
+    'smsCode': this.smsCode,
+})
+```
 
 
 
 
 
+**第二步**：关闭浏览器再次登录的校验。
+
+```java
+// RememberMeAuthenticationFilter 源码
+public class RememberMeAuthenticationFilter {
+    
+    private RememberMeServices rememberMeServices;
+    
+    public void doFilter() {
+        // RememberMeAuthenticationFilter 中需要使用我们自己的 RememberMeServices
+        Authentication rememberMeAuth 
+            = this.rememberMeServices.autoLogin(request, response);
+    }
+}
+```
+
+
+
+**配置如下**：
+
+```java
+// SecurityConfig 中的配置
+@Override
+protected void configure(HttpSecurity http) throws Exception {
+    http
+        // 开启 remember-me 功能
+        .rememberMe()
+        // 会在RememberMeAuthenticationFilter中加入rememberMeServices
+        .rememberMeServices(rememberMeServices)       
+		...
+}
+```
+
+
+
+**第三步**：数据库的过期登录信息需要自动删除，配置定时任务即可。
+
+详细请看 `RememberMeTask`。
 
 
 
